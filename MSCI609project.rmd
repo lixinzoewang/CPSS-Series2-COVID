@@ -1,0 +1,494 @@
+---
+title: "609project.rmd"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+##  Introduction
+#### Hypothesis:
+H1: The severity of generalized anxiety is related to the increased impacts of COVID-19 on ability to meet financial obligations or essential needs(A). 
+
+H2: The severity of generalized anxiety is related to the increased person’s time spending on the internet(I). 
+H3: The severity of generalized anxiety is related to the increased household food insecurity (H). 
+
+H4: The severity of generalized anxiety is related to the increased effect of A, H, and I. 
+\
+
+## Data Overview
+Dependent Variable: ANXDVGAD (Generalized Anxiety Severity Score)
+
+Independent Variable: 
+
+1.	Key Variables:
+a.	LM_40 (COVID-19 impacts ability meet financial obligations or essential needs)
+b.	PFSCDV (Household food insecurity)
+c.	BH_40F (Spending time on the internet)
+\
+
+2.	Control Variables:
+a.	AGEGRP (Age group of respondent)
+b.	SEX (Sex of respondent)
+c.	PCHILD (Child under 18 on May 4th, 2020 resides in dwelling)
+\
+
+3. Reorder some variables as follows:
+a. LM_40 (1: No impact; 2: Minor impact; 3: Moderate impact; 4: Major impact)
+b. BH_40F (1: Decrease; 2: No change; 3: Increase)
+c. PFSCDV (1: Food secure; 2: Marginally food insecure; 3: Moderately food insecure; 4: Severely food insecure)
+d. Sex (0: Male; 1: Female)
+\
+\
+
+## Loading objects and data
+```{r cache=T}
+packages=c("caret","ggplot2","tidyverse","dplyr","corrplot","DescTools","zoo","lmtest","MASS","stargazer","erer","car","brant")
+# Now load or install & load all
+package.check <- lapply(packages,FUN = function(x) {
+  if (!require(x, character.only = TRUE)) {
+    install.packages(x, dependencies = TRUE)
+    library(x, character.only = TRUE)
+  }
+}
+)
+
+setwd("/Users/zoe/Desktop")
+mh=read.csv("mh.csv", header=T)
+mh=as_tibble(mh)
+
+```
+
+## Data Visualization and Exploration
+````{r}
+# changing the names of column
+mh_rename = setNames(mh, c("mh_index", "financ_stress", "internet", "food_insec", "age", "children", "sex"))
+summary(mh_rename)
+
+ggplot(data=mh_rename) + geom_bar(mapping = aes(x = financ_stress),color = 'skyblue4',fill='skyblue4')
+ggplot(data=mh_rename) + geom_bar(mapping = aes(x = internet),color = 'skyblue4',fill='skyblue4')
+ggplot(data=mh_rename) + geom_bar(mapping = aes(x = food_insec),color = 'skyblue4',fill='skyblue4')
+ggplot(data=mh_rename) + geom_bar(mapping = aes(x = age),color = 'skyblue4',fill='skyblue4')
+ggplot(data=mh_rename) + geom_bar(mapping = aes(x = children),color = 'skyblue4',fill='skyblue4')
+ggplot(data=mh_rename) + geom_bar(mapping = aes(x = sex),color = 'skyblue4',fill='skyblue4')
+ggplot(data=mh_rename,aes(x = mh_index)) + geom_bar(color = 'skyblue4',fill='skyblue4')
+
+# Scatter Plot
+plot(mh_rename)
+
+# Skewness and Kurtosis
+install.packages("moments")
+library(moments)
+skewness(mh_rename$mh_index)
+
+
+# Correlation Plot
+mh_corr = cor(mh_rename,method = 'spearman')
+corrplot(mh_corr, # correlation matrix
+         order = "hclust") 
+corrplot(mh_corr, order = "hclust") 
+
+```
+
+## Data visualization after grouping 
+```{r}
+# Data grouping
+mh_convert = mh_rename %>%
+  mutate(mh_index_convert = case_when(mh_index <= 4 ~ "1",
+                                      mh_index == 5 ~ "2",
+                                      mh_index == 6 ~ "2",
+                                      mh_index == 7 ~ "2",
+                                      mh_index == 8 ~ "2",
+                                      mh_index == 9 ~ "2",
+                                      mh_index == 10 ~ "3",
+                                      mh_index == 11 ~ "3",
+                                      mh_index == 12 ~ "3",
+                                      mh_index == 13 ~ "3",
+                                      mh_index == 14 ~ "3",
+                                      mh_index >= 15 ~ "4",))
+
+# Financial obligation
+mh1=mh_convert %>%
+  select(financ_stress,mh_index_convert) %>%
+  group_by(financ_stress) %>%
+  count(mh_index_convert) %>%
+  mutate(percentage=n/sum(n))
+ggplot(mh1, aes(fill=factor(mh_index_convert), x=financ_stress, y=percentage))+geom_bar(stat="identity")
+
+# internet
+mh2=mh_convert %>%
+  select(internet,mh_index_convert) %>%
+  group_by(internet) %>%
+  count(mh_index_convert) %>%
+  mutate(percentage=n/sum(n))
+ggplot(mh2, aes(fill=factor(mh_index_convert), x=internet, y=percentage))+geom_bar(stat="identity")
+
+# food insecurity
+mh3=mh_convert %>%
+  select(food_insec,mh_index_convert) %>%
+  group_by(food_insec) %>%
+  count(mh_index_convert) %>%
+  mutate(percentage=n/sum(n))
+ggplot(mh3, aes(fill=factor(mh_index_convert), x=food_insec, y=percentage))+geom_bar(stat="identity")
+
+# age group
+mh4=mh_convert %>%
+  select(age,mh_index_convert) %>%
+  group_by(age) %>%
+  count(mh_index_convert) %>%
+  mutate(percentage=n/sum(n))
+ggplot(mh4, aes(fill=factor(mh_index_convert), x=age, y=percentage))+geom_bar(stat="identity")
+
+# child under 18
+mh5=mh_convert %>%
+  select(children,mh_index_convert) %>%
+  group_by(children) %>%
+  count(mh_index_convert) %>%
+  mutate(percentage=n/sum(n))
+ggplot(mh5, aes(fill=factor(mh_index_convert), x=children, y=percentage))+geom_bar(stat="identity")
+
+# sex
+mh6=mh_convert %>%
+  select(sex,mh_index_convert) %>%
+  group_by(sex) %>%
+  count(mh_index_convert) %>%
+  mutate(percentage=n/sum(n))
+ggplot(mh6, aes(fill=factor(mh_index_convert), x=sex, y=percentage))+geom_bar(stat="identity")
+
+```
+
+## Multiple regression model
+```{r}
+# Method 1. Original dataset
+
+mh.lm1 = lm(mh_index ~ financ_stress + age + children + sex, data = mh_rename)
+summary(mh.lm1)
+
+mh.lm2 = lm(mh_index ~ internet + food_insec + age + children + sex, data = mh_rename)
+summary(mh.lm2)
+
+mh.lm3 = lm(mh_index ~ food_insec + age + children + sex, data = mh_rename)
+summary(mh.lm3)
+
+mh.lm4 = lm(mh_index ~ financ_stress + internet + food_insec + age + children + sex, data = mh_rename)
+summary(mh.lm4)
+
+
+# Method 2. log transformation on my DV. 
+# mh_index can't be 0
+# increment column of mh_index by 1. 
+mh_add = mh_rename %>% mutate(mh_index = mh_index + 1)
+# transform mh_index to log
+mh_trans.lm = lm(log(mh_index) ~ financ_stress + internet + food_insec + age + children + sex, data = mh_add)
+summary(mh_trans.lm)
+
+```
+
+## Normality test
+```{r}
+par(mfrow = c(2, 2))
+plot(mh.lm4)
+
+par(mfrow = c(2, 2))
+plot(mh_trans.lm)
+
+hist(residuals(mh.lm4))
+boxplot(residuals(mh.lm4))
+shapiro.test(residuals(mh.lm4))
+             
+hist(residuals(mh_trans.lm))
+boxplot(residuals(mh_trans.lm))
+shapiro.test(residuals(mh_trans.lm))
+
+```
+
+## Residual check and heteroskedasticity
+```{r}
+# The Breusch-Pagan Test for heteroskedasticity
+# H0: There is no heteroskedasticity
+# H1: There is heteroskedasticity
+
+bptest(mh.lm4)
+bptest(mh_trans.lm)
+# We can reject the null hypothesis, so in both models, we do have heteroskedasticity issue. 
+
+# Resolving heteroskedasticity
+# For untransformed data
+mh_resolve = lm(mh_index ~ financ_stress + internet + food_insec + age + children + sex, data = mh_rename)
+mh$resi = mh_resolve$residuals
+mh_varfunc = lm(log(mh$resi^2) ~ log(financ_stress + internet + food_insec + age + children + sex), data = mh_rename)
+mh_vari <- exp(mh_varfunc$fitted.values)
+mh.gls <- lm(mh_index ~ financ_stress + internet + food_insec + age + children + sex, weights = 1/sqrt(mh_vari), data = mh_rename)
+summary(mh.gls)
+
+bptest(mh.gls)
+
+# Still have heteroskedasticity issue. 
+
+# For log transformed data
+mh_resolve = lm(log(mh_index) ~ financ_stress + internet + food_insec + age + children + sex, data = mh_add)
+mh$resi = mh_resolve$residuals
+mh_varfunc = lm(log(mh$resi^2) ~ log(financ_stress + internet + food_insec + age + children + sex), data = mh_add )
+mh_vari <- exp(mh_varfunc$fitted.values)
+mh.gls <- lm(log(mh_index) ~ financ_stress + internet + food_insec + age + children + sex, weights = 1/sqrt(mh_vari), data = mh_add )
+summary(mh.gls)
+
+bptest(mh.gls)
+
+# Still have heteroskedasticity issue. 
+
+```
+
+## Ordered Logit Model
+```{r}
+# Method 3: Ordered Logit Model
+
+# Grouping Reference: "INSTRUCTION MANUAL Instructions for Patient Health Questionnaire (PHQ) and GAD-7 Measures"
+# 0-4 minimal anxiety
+# 5-9 mild anxiety
+# 10-14 moderate anxiety
+# >=15 severe anxiety
+
+mh_logit_all = polr(as.factor(mh_index_convert) ~ financ_stress + internet + food_insec + age + children + sex, data = mh_convert, Hess=TRUE)
+
+PseudoR2(mh_logit_all, which = NULL)
+
+# summary(mh_logit.lm)
+# 
+# summary_table <- coef(summary(mh_logit.lm))
+# pval <- pnorm(abs(summary_table[, "t value"]),lower.tail = FALSE)* 2
+# summary_table <- cbind(summary_table, "p value" = round(pval,3))
+# summary_table
+
+
+# Getting the coefficient and p-value
+mh_logit_all.coef = data.frame(coef(summary(mh_logit_all)))
+mh_logit_all.coef$pval = round((pnorm(abs(mh_logit_all.coef$t.value), lower.tail = FALSE) * 2),2)
+mh_logit_all.coef
+
+library(stargazer)
+stargazer(mh_logit_all, type="text")
+
+# Odds ratios
+mh_logit_all.or=exp(coef(mh_logit_all))
+mh_logit_all.or
+
+stargazer(mh_logit_all, type="text", coef=list(mh_logit_all.or), p.auto=FALSE)
+
+# Interpretation: 
+# For financial obligation, keep all variables constant, when financ_stress increases by 1 unit, it is 1.583 times more likely to be in a higher category of mental health index (more severe mental health issue). In other words, the odds of moving to a higher category in the outcome variable is 58.3% when financ_stress move 1 unit (1.583 - 1). The coefficient is significant. 
+
+# For children, the coefficient is not significant. Here, the children is the control variable. 
+
+```
+
+## Ordered Probit Model
+```{r}
+# Method 4: Ordered Probit Model
+# install.packages("aod")
+# library(aod)
+# 
+# mh_logit.lm = glm(as.factor(mh_index) ~ financ_stress + internet + food_insec + age + children + sex, family = "binomial",data = mh_rename)
+# 
+# summary(mh_logit.lm)
+# 
+# PseudoR2(mh_logit.lm, which = NULL)
+
+mh_probit_all = polr(as.factor(mh_index_convert) ~ financ_stress + internet + food_insec + age + children + sex, data = mh_convert, Hess=TRUE, method = "probit")
+
+PseudoR2(mh_probit_all, which = NULL)
+
+mh_probit_all.coef = data.frame(coef(summary(mh_probit_all)))
+mh_probit_all.coef$pval = round((pnorm(abs(mh_probit_all.coef$t.value), lower.tail = FALSE) * 2),2)
+mh_probit_all.coef
+
+library(stargazer)
+stargazer(mh_probit_all, type= "text")
+
+# Interpretation:
+# For financial obligation, keep all variables constant, when financ_stress increases by 1 unit, the z-score of mh_index increases by 0.269. The coefficient is significant. 
+
+# For children, the coefficient is not significant. 
+```
+
+## Split data and build models
+```{r}
+# Split data into training set and test set
+samplesize = 0.60*nrow(mh_convert)
+set.seed(100)
+index = sample(seq_len(nrow(mh_convert)), size = samplesize)
+
+#Creating training and test set 
+mh_train = mh_convert[index,]
+mh_test = mh_convert[-index,]
+
+# Build model using train set
+
+# Logit1
+
+logit1 = polr(as.factor(mh_index_convert) ~ financ_stress + age + children + sex, data = mh_train, Hess=TRUE)
+summary(logit1)
+table1 = coef(summary(logit1))
+p = pnorm(abs(table1[,"t value"]), lower.tail = FALSE) * 2
+(ctable1 = cbind(table1, "p value" = p))
+
+stargazer(logit4, type="text")
+
+# Odds ratios
+
+ci = confint(logit1)
+confint.default(logit1)
+exp(coef(logit1))
+exp(cbind(OR=coef(logit1), ci))
+
+
+# Logit2
+
+logit2 = polr(as.factor(mh_index_convert) ~ internet + age + children + sex, data = mh_train, Hess=TRUE)
+summary(logit2)
+table2 = coef(summary(logit2))
+p = pnorm(abs(table2[,"t value"]), lower.tail = FALSE) * 2
+(ctable1 = cbind(table2, "p value" = p))
+
+library(stargazer)
+stargazer(logit2, type="text")
+
+# Odds ratios
+logit2.or=exp(coef(logit2))
+logit2.or
+
+stargazer(logit2, type="text", coef=list(logit2.or), p.auto=FALSE)
+
+
+# Logit3
+
+logit3 = polr(as.factor(mh_index_convert) ~ food_insec + age + children + sex, data = mh_train, Hess=TRUE)
+summary(logit3)
+
+table3 = coef(summary(logit3))
+p = pnorm(abs(table3[,"t value"]), lower.tail = FALSE) * 2
+(ctable1 = cbind(table3, "p value" = p))
+
+library(stargazer)
+stargazer(logit3, type="text")
+
+# Odds ratios
+logit3.or=exp(coef(logit3))
+logit3.or
+
+stargazer(logit3, type="text", coef=list(logit3.or), p.auto=FALSE)
+
+# Logit4
+
+logit4 = polr(as.factor(mh_index_convert) ~ financ_stress + internet + food_insec + age + children + sex, data = mh_train, Hess=TRUE)
+summary(logit4)
+
+table4 = coef(summary(logit4))
+p = pnorm(abs(table4[,"t value"]), lower.tail = FALSE) * 2
+(ctable4 = cbind(table4, "p value" = p))
+
+stargazer(logit4, type="text")
+
+# Odds ratios
+logit4.or=exp(coef(logit4))
+logit4.or
+
+stargazer(logit4, type="text", coef=list(logit4.or), p.auto=FALSE)
+
+# Interpretation:
+# According to AIC, logit 4 is the best model of the four with smallest AIC. 
+
+# The interpretation for the coefficients is as follows. For example, holding everything else constant, an increase in value of financial obligation by one unit increase the expected value of mh_index in log odds by 0.4635. 
+
+# 1|2 probability intercept takes value of 2.1843, indicating that the expected odds of identifying in 1 category, when other variables assume a value of zero, is 2.1843. 
+
+(prob_1 = exp(2.1843)/(1+exp(2.1843)))
+(prob_2 = exp(3.963)/(1+exp(3.863)))
+
+
+# The expected probability of identifying 1 category of mh_index, when other variables assume a value of zero, is 0.8988.
+
+
+# Compute confusion table and misclassification error
+
+# logit 1
+predict_index1 = predict(logit1, mh_test)
+table(mh_test$mh_index_convert, predict_index1)
+mean(as.character(mh_test$mh_index_convert) != as.character(predict_index1))
+
+
+# logit 2
+predict_index2 = predict(logit2, mh_test)
+table(mh_test$mh_index_convert, predict_index2)
+mean(as.character(mh_test$mh_index_convert) != as.character(predict_index2))
+
+# logit 3
+predict_index3 = predict(logit3, mh_test)
+table(mh_test$mh_index_convert, predict_index3)
+mean(as.character(mh_test$mh_index_convert) != as.character(predict_index3))
+
+# logit 4
+predict_index4 = predict(logit4, mh_test)
+table(mh_test$mh_index_convert, predict_index4)
+mean(as.character(mh_test$mh_index_convert) != as.character(predict_index4))
+
+# Interpretation:
+# In the test dataset, 847 times index = 1 is identified correctly. 
+# Using the confusion matrix, we find that the misclassification error for our models are all around 40%.
+
+```
+
+## Probability for each category of DV.
+```{r}
+logit4.coef = data.frame(coef(summary(logit4)))
+logit4.coef$pval = round((pnorm(abs(logit4.coef$t.value), lower.tail = FALSE) * 2),5)
+logit4.coef
+
+dv_4 = mh_train$mh_index[mh_train$mh_index_convert == 4]
+odds = (length(dv_4)/length(mh_train$mh_index_convert))
+beta0 = log(odds*(1-odds))
+
+logit4.or = exp(coef(logit4))
+stargazer(logit4, type="text", coef=list(logit4.or), p.auto=FALSE, out="text")
+logit4.pred = predict(logit4, type="probs")
+summary(logit4.pred)
+
+setup = data.frame(sex=mh_train$sex,
+                    age=mh_train$age,
+                    children=mh_train$children,
+                    financ_stress=mh_train$financ_stress,
+                    internet=mh_train$internet,
+                    food_insec=mh_train$food_insec)
+
+setup[, c("pred.prob")] = predict(logit4, newdata = setup, type = "probs")
+setup[1:50,]
+
+```
+## Marginal Effect
+```{r}
+library(margins)
+library(broom)
+margin1 = glm((as.numeric(mh_index_convert) == 1 ) ~ financ_stress + internet + food_insec + age + children + sex, family = "binomial"(link="logit"), data = mh_train)
+margin2 = glm((as.numeric(mh_index_convert) == 2) ~ financ_stress + internet + food_insec + age + children + sex, family = "binomial"(link="logit"), data = mh_train)
+margin3 = glm((as.numeric(mh_index_convert) == 3) ~ financ_stress + internet + food_insec + age + children + sex, family = "binomial"(link="logit"), data = mh_train)
+margin4 = glm((as.numeric(mh_index_convert) == 4) ~ financ_stress + internet + food_insec + age + children + sex, family = "binomial"(link="logit"), data = mh_train)
+
+logitmargins1 = margins(margin1)
+logitmargins2 = margins(margin2)
+logitmargins3 = margins(margin3)
+logitmargins4 = margins(margin4)
+
+```
+
+## Checking ordered logit assumption
+```{r}
+# 1. Multi-collinearity
+h4.model = lm(scale(as.numeric(mh_index_convert)) ~ financ_stress + internet + food_insec + age + children + sex, data = mh_train)
+vif(h4.model)
+# Pass
+
+# 2. Proportional odds
+brant(logit4)
+# Pass
+
+```
+
